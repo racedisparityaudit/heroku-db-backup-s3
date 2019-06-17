@@ -4,7 +4,7 @@ DBNAME=""
 EXPIRATION="30"
 Green='\033[0;32m'
 EC='\033[0m' 
-FILENAME=`date +%H_%M_%d%m%Y`
+DATESTAMP=`date +%H_%M_%d%m%Y`
 
 # terminate script on any fails
 set -e
@@ -26,10 +26,6 @@ esac
 shift
 done
 
-if [[ -z "$DBNAME" ]]; then
-  echo "Missing DBNAME variable"
-  exit 1
-fi
 if [[ -z "$AWS_ACCESS_KEY_ID" ]]; then
   echo "Missing AWS_ACCESS_KEY_ID variable"
   exit 1
@@ -42,29 +38,27 @@ if [[ -z "$AWS_DEFAULT_REGION" ]]; then
   echo "Missing AWS_DEFAULT_REGION variable"
   exit 1
 fi
-if [[ -z "$S3_BUCKET_PATH" ]]; then
-  echo "Missing S3_BUCKET_PATH variable"
+if [[ -z "$DB_BACKUP_URL" ]]; then
+  echo "Missing DB_BACKUP_URL variable"
   exit 1
 fi
-if [[ -z "$DBURL_FOR_BACKUP" ]]; then
-  echo "Missing DBURL_FOR_BACKUP variable"
+if [[ -z "$DB_BACKUP_S3_BUCKET_PATH" ]]; then
+  echo "Missing DB_BACKUP_S3_BUCKET_PATH variable"
+  exit 1
+fi
+if [[ -z "$DB_BACKUP_FILENAME" ]]; then
+  echo "Missing DB_BACKUP_FILENAME variable"
   exit 1
 fi
 
 printf "${Green}Start dump${EC}"
-# Maybe in next 'version' use heroku-toolbelt
-# /app/vendor/heroku-toolbelt/bin/heroku pg:backups capture $DATABASE --app $HEROKU_TOOLBELT_APP
-# BACKUP_URL=`/app/vendor/heroku-toolbelt/bin/heroku pg:backups:public-url --app $HEROKU_TOOLBELT_APP | cat`
-# curl --progress-bar -o /tmp/"${DBNAME}_${FILENAME}" $BACKUP_URL
-# gzip /tmp/"${DBNAME}_${FILENAME}"
 
-time pg_dump $DBURL_FOR_BACKUP | gzip >  /tmp/"${DBNAME}_${FILENAME}".gz
+time pg_dump $DB_BACKUP_URL | gzip >  /tmp/"${DB_BACKUP_FILENAME}_${DATESTAMP}".gz
 
-#EXPIRATION_DATE=$(date -v +"2d" +"%Y-%m-%dT%H:%M:%SZ") #for MAC
 EXPIRATION_DATE=$(date -d "$EXPIRATION days" +"%Y-%m-%dT%H:%M:%SZ")
 
 printf "${Green}Move dump to AWS${EC}"
-time /app/vendor/awscli/bin/aws s3 cp /tmp/"${DBNAME}_${FILENAME}".gz s3://$S3_BUCKET_PATH/$DBNAME/"${DBNAME}_${FILENAME}".gz --expires $EXPIRATION_DATE
+time /app/vendor/awscli/bin/aws s3 cp /tmp/"${DB_BACKUP_FILENAME}_${DATESTAMP}".gz s3://$DB_BACKUP_S3_BUCKET_PATH/$DBNAME/"${DB_BACKUP_FILENAME}_${DATESTAMP}".gz --expires $EXPIRATION_DATE
 
 # cleaning after all
-rm -rf /tmp/"${DBNAME}_${FILENAME}".gz
+rm -rf /tmp/"${DB_BACKUP_FILENAME}_${DATESTAMP}".gz
